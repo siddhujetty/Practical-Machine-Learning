@@ -1,0 +1,123 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Siddhartha Jetti"
+date: "October 16, 2016"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load required packages
+
+The caret package is used to conduct the analysis on the provided dataset.
+
+```{r}
+library(caret)
+```
+
+## Read input data
+```{r, echo=FALSE}
+setwd("C:\\Users\\ub71493\\Desktop\\PML")
+```
+
+```{r}
+Proj_train <- read.csv("pml-training.csv",na.strings = c("NA", ""), stringsAsFactors = F)
+Proj_test <- read.csv("pml-testing.csv", na.strings = c("NA", ""), stringsAsFactors = F)
+```
+
+The dimensions of training and test datasets are as follows:
+```{r}
+dim(Proj_train); dim(Proj_test)
+```
+
+## Data Cleaning
+
+Checking if the training dataset has any missing or NAs. If so they need to be dropped.
+```{r}
+any(is.na(Proj_train))
+```
+Some of the columns have missing values and need to be dropped. The folllowing are the columns without any missing values in training data set.
+```{r}
+col_names <- names(Proj_train)
+index <- colSums(is.na(Proj_train))==0
+col_names[index]
+```
+Drop all the columns that have missing values and id variables
+```{r}
+trainingdf <- Proj_train[,colSums(is.na(Proj_train))==0]
+testingdf <- Proj_test[,colSums(is.na(Proj_test))==0]
+trainingdf <- trainingdf[,-c(1:7)]
+testingdf <- testingdf[,-c(1:7)]
+```
+## Training and Validation datasets
+The provided training dataset is split into training(70%) and validation(30%) datasets to get an estimate of out of sample misclassification rate.
+```{r}
+set.seed(2016) 
+tr_index <- createDataPartition(trainingdf$classe, p = 0.7, list = FALSE)
+training <- trainingdf[tr_index, ]
+validation <- trainingdf[-tr_index, ]
+```
+
+## Model Fitting
+The response is a categorical variable so its a classification problem.
+LDA, classification trees and Random forests can be used for prediction.The 5-fold crossvalidation method will be used to find the model parameters and to train each of the models.
+```{r}
+train_param <- trainControl(method = "cv", number = 5)
+```
+### LDA
+```{r}
+model_lda <- train(classe ~ ., data = training, method = "lda", 
+                   trainControl = train_param)
+prediction_lda <- predict(model_lda,validation)
+table(prediction_lda,validation$classe)
+Accuracy <- mean(prediction_lda==validation$classe)
+```
+The prediction accuracy on validation set for LDA is
+```{r}
+Accuracy
+```
+
+### Classification tree
+```{r}
+library(tree)
+train_tree <- tree(as.factor(classe)~.,training)
+set.seed(2016)
+cv_tree <- cv.tree(train_tree,FUN=prune.misclass)
+cv_tree
+model_tree <- prune.misclass(train_tree,best=17)
+prediction_tree <- predict(model_tree,validation,type="class")
+table(prediction_tree,validation$classe)
+Accuracy <- mean(prediction_tree==validation$classe)
+```
+The prediction accuracy on validation set for classification tree is
+```{r}
+Accuracy
+```
+
+### Random forests
+
+```{r}
+model_rf <- train(classe ~ ., data = training, method = "rf", 
+                    trainControl = train_param)
+prediction_rf <- predict(model_rf,validation)
+table(prediction_rf,validation$classe)
+Accuracy <- mean(prediction_rf==validation$classe)
+```
+The prediction accuracy on validation set for Random forests is
+```{r}
+Accuracy
+```
+Clearly Random forests performed way better than the other alternatives on the validation set. Hence, it should be used for predictions on the provided test dataset.
+
+### Prediction
+```{r}
+testingdf <- testingdf[,-53]
+prediction_new <- predict(model_rf,testingdf)
+prediction_new
+```
+
+
+
